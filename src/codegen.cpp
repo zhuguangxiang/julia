@@ -3436,12 +3436,12 @@ static void emit_vi_assignment_unboxed(jl_codectx_t &ctx, jl_varinfo_t &vi, Valu
                 assert(jl_is_leaf_type(vi.value.typ));
                 // Sometimes we can get into situations where the LHS and RHS
                 // are the same slot. We're not allowed to memcpy in that case
-                // under penalty of undefined behavior. This check should catch
-                // the relevant situations.
+                // under penalty of undefined behavior.
+                // This check should probably mostly catch the relevant situations.
                 if (vi.value.V != rval_info.V) {
-                    Value *copy_bytes = ConstantInt::get(T_int32, jl_datatype_size(vi.value.typ));
+                    Value *copy_bytes = ConstantInt::get(T_int32, llvm_sizeof(vi.value.typ));
                     emit_memcpy(ctx, vi.value.V, rval_info, copy_bytes,
-                                jl_datatype_align(rval_info.typ), vi.isVolatile, tbaa);
+                                llvm_alignment(rval_info.typ, 0), vi.isVolatile, tbaa);
                 }
             }
             else {
@@ -4057,12 +4057,12 @@ static void emit_cfunc_invalidate(
         }
         else {
             gf_ret = emit_bitcast(ctx, gf_ret, gfrt->getPointerTo());
-            ctx.builder.CreateRet(ctx.builder.CreateAlignedLoad(gf_ret, julia_alignment(astrt, 0)));
+            ctx.builder.CreateRet(ctx.builder.CreateAlignedLoad(gf_ret, llvm_alignment(astrt, 0)));
         }
         break;
     }
     case jl_returninfo_t::SRet: {
-        unsigned sret_nbytes = jl_datatype_size(astrt);
+        unsigned sret_nbytes = llvm_sizeof(astrt);
         emit_memcpy(ctx, &*gf_thunk->arg_begin(), gf_ret, sret_nbytes, jl_alignment(sret_nbytes));
         ctx.builder.CreateRetVoid();
         break;
@@ -4606,7 +4606,7 @@ static Function *gen_jlcall_wrapper(jl_method_instance_t *lam, const jl_returnin
         if (lty != NULL && !isboxed) {
             theArg = decay_derived(emit_bitcast(ctx, theArg, PointerType::get(lty, 0)));
             if (!lty->isAggregateType()) // keep "aggregate" type values in place as pointers
-                theArg = ctx.builder.CreateAlignedLoad(theArg, julia_alignment(ty, 0));
+                theArg = ctx.builder.CreateAlignedLoad(theArg, llvm_alignment(ty, 0));
         }
         assert(dyn_cast<UndefValue>(theArg) == NULL);
         args[idx] = theArg;
@@ -4718,7 +4718,7 @@ static jl_returninfo_t get_specsig_function(Module *M, const std::string &name, 
         bool retboxed;
         rt = julia_type_to_llvm(jlrettype, &retboxed);
         if (!retboxed) {
-            if (rt != T_void && deserves_sret(jlrettype, rt)) {
+            if (rt != T_void && llvm_sizeof(jlrettype) > 0 && deserves_sret(jlrettype, rt)) {
                 props.cc = jl_returninfo_t::SRet;
                 fsig.push_back(rt->getPointerTo(AddressSpace::Derived));
                 rt = T_void;
@@ -4739,10 +4739,12 @@ static jl_returninfo_t get_specsig_function(Module *M, const std::string &name, 
         attributes = attributes.addAttribute(jl_LLVMContext, 1, Attribute::StructRet);
         attributes = attributes.addAttribute(jl_LLVMContext, 1, Attribute::NoAlias);
         attributes = attributes.addAttribute(jl_LLVMContext, 1, Attribute::NoCapture);
+        attributes = attributes.addDereferenceableAttr(jl_LLVMContext, 1, llvm_sizeof(jlrettype));
     }
     if (props.cc == jl_returninfo_t::Union) {
         attributes = attributes.addAttribute(jl_LLVMContext, 1, Attribute::NoAlias);
         attributes = attributes.addAttribute(jl_LLVMContext, 1, Attribute::NoCapture);
+        attributes = attributes.addDereferenceableAttr(jl_LLVMContext, 1, props.union_bytes);
     }
     for (size_t i = 0; i < jl_nparams(sig); i++) {
         jl_value_t *jt = jl_tparam(sig, i);
@@ -4750,13 +4752,18 @@ static jl_returninfo_t get_specsig_function(Module *M, const std::string &name, 
         Type *ty = julia_type_to_llvm(jt, &isboxed);
         if (type_is_ghost(ty))
             continue;
+        unsigned argno = fsig.size() + 1;
         if (ty->isAggregateType()) { // aggregate types are passed by pointer
-            attributes = attributes.addAttribute(jl_LLVMContext, fsig.size() + 1, Attribute::NoCapture);
-            attributes = attributes.addAttribute(jl_LLVMContext, fsig.size() + 1, Attribute::ReadOnly);
+            attributes = attributes.addAttribute(jl_LLVMContext, argno, Attribute::NoCapture);
+            attributes = attributes.addAttribute(jl_LLVMContext, argno, Attribute::ReadOnly);
+            attributes = attributes.addDereferenceableAttr(jl_LLVMContext, argno, llvm_sizeof(jt));
             ty = PointerType::get(ty, AddressSpace::Derived);
         }
-        if (isboxed)
+        else if (isboxed) {
+            if (jl_is_leaf_type(jt))
+                attributes = attributes.addDereferenceableAttr(jl_LLVMContext, argno, jl_datatype_size(jt));
             ty = PointerType::get(cast<PointerType>(ty)->getElementType(), AddressSpace::Tracked);
+        }
         fsig.push_back(ty);
     }
     FunctionType *ftype = FunctionType::get(rt, fsig, false);
@@ -5263,15 +5270,12 @@ static std::unique_ptr<Module> emit_function(
             theArg = ghostValue(argType);
         }
         else if (llvmArgType->isAggregateType()) {
-            Argument *Arg = &*AI++;
-            maybe_mark_argument_dereferenceable(Arg, argType);
+            Argument *Arg = &*AI; ++AI;
             theArg = mark_julia_slot(Arg, argType, NULL, tbaa_const); // this argument is by-pointer
             theArg.isimmutable = true;
         }
         else {
-            Argument *Arg = &*AI++;
-            if (isboxed)
-                maybe_mark_argument_dereferenceable(Arg, argType);
+            Argument *Arg = &*AI; ++AI;
             theArg = mark_julia_type(ctx, Arg, isboxed, argType);
         }
         return theArg;
@@ -5697,8 +5701,8 @@ static std::unique_ptr<Module> emit_function(
                 if (retvalinfo.ispointer()) {
                     if (returninfo.cc == jl_returninfo_t::SRet) {
                         assert(jl_is_leaf_type(jlrettype));
-                        emit_memcpy(ctx, sret, retvalinfo, jl_datatype_size(jlrettype),
-                                    julia_alignment(jlrettype, 0));
+                        emit_memcpy(ctx, sret, retvalinfo, llvm_sizeof(jlrettype),
+                                    llvm_alignment(jlrettype, 0));
                     }
                     else { // must be jl_returninfo_t::Union
                         emit_unionmove(ctx, sret, retvalinfo, isboxed_union, false, NULL);

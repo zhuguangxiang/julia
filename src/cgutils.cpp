@@ -895,6 +895,69 @@ static Value *emit_datatype_name(jl_codectx_t &ctx, Value *dt)
             tbaa_const);
 }
 
+// If given alignment is 0 and LLVM's assumed alignment for a load/store via ptr
+// might be stricter than the Julia alignment for jltype, return the alignment of jltype.
+// Otherwise return the given alignment.
+static unsigned llvm_alignment(jl_value_t *jltype, unsigned alignment)
+{
+    if (!alignment) {
+        alignment = jl_datatype_align(jltype);
+        assert(alignment <= JL_HEAP_ALIGNMENT);
+        assert(JL_HEAP_ALIGNMENT % alignment == 0);
+    }
+    return alignment;
+}
+
+static unsigned llvm_sizeof(jl_datatype_t *dt)
+{
+    unsigned nf = jl_datatype_nfields(dt);
+    if (nf == 0)
+        return jl_datatype_size(dt);
+    return jl_field_offset(dt, nf - 1)
+        + jl_field_size(dt, nf - 1);
+}
+
+static unsigned llvm_sizeof(jl_value_t *dt)
+{
+    return llvm_sizeof((jl_datatype_t*)dt);
+}
+
+static size_t dereferenceable_size(jl_value_t *jt, bool isfield) {
+    size_t size = 0;
+    if (jl_is_array_type(jt)) {
+        // Array has at least this much data
+        size = sizeof(jl_array_t);
+    }
+    else if (isfield) {
+        size = jl_datatype_size(jt);
+    }
+    else {
+        size = llvm_sizeof(jt);
+    }
+    return size;
+}
+
+static inline Instruction *maybe_mark_load_dereferenceable(Instruction *LI, bool can_be_null, size_t size) {
+    if (!size) {
+        return LI;
+    }
+    llvm::SmallVector<Metadata *, 1> OPs;
+    OPs.push_back(ConstantAsMetadata::get(ConstantInt::get(T_int64, size)));
+    LI->setMetadata(can_be_null ? "dereferenceable_or_null" :
+                                  "dereferenceable",
+                    MDNode::get(jl_LLVMContext, OPs));
+    return LI;
+}
+
+static inline Instruction *maybe_mark_load_dereferenceable(Instruction *LI, bool can_be_null, jl_value_t *jt, bool isfield) {
+    if (!jl_is_leaf_type(jt)) {
+        return LI;
+    }
+    size_t size = dereferenceable_size(jt, isfield);
+    return maybe_mark_load_dereferenceable(LI, can_be_null, size);
+}
+
+
 // --- generating various error checks ---
 // Do not use conditional throw for cases that type inference can know
 // the error is always thrown. This may cause non dominated use
@@ -954,48 +1017,6 @@ static void raise_exception_unless(jl_codectx_t &ctx, Value *cond, Value *exc)
     ctx.builder.CreateCondBr(cond, passBB, failBB);
     ctx.builder.SetInsertPoint(failBB);
     raise_exception(ctx, exc, passBB);
-}
-
-static size_t dereferenceable_size(jl_value_t *jt) {
-    size_t size = 0;
-    if (jl_is_array_type(jt)) {
-        // Array has at least this much data
-        size = sizeof(jl_array_t);
-    } else {
-        size = jl_datatype_size(jt);
-    }
-    return size;
-}
-
-static inline void maybe_mark_argument_dereferenceable(Argument *A, jl_value_t *jt) {
-    if (!jl_is_leaf_type(jt)) {
-        return;
-    }
-    size_t size = dereferenceable_size(jt);
-    if (!size) {
-        return;
-    }
-    A->getParent()->addDereferenceableAttr(A->getArgNo() + 1, size);
-}
-
-static inline Instruction *maybe_mark_load_dereferenceable(Instruction *LI, bool can_be_null, size_t size) {
-    if (!size) {
-        return LI;
-    }
-    llvm::SmallVector<Metadata *, 1> OPs;
-    OPs.push_back(ConstantAsMetadata::get(ConstantInt::get(T_int64, size)));
-    LI->setMetadata(can_be_null ? "dereferenceable_or_null" :
-                                  "dereferenceable",
-                    MDNode::get(jl_LLVMContext, OPs));
-    return LI;
-}
-
-static inline Instruction *maybe_mark_load_dereferenceable(Instruction *LI, bool can_be_null, jl_value_t *jt) {
-    if (!jl_is_leaf_type(jt)) {
-        return LI;
-    }
-    size_t size = dereferenceable_size(jt);
-    return maybe_mark_load_dereferenceable(LI, can_be_null, size);
 }
 
 static void null_pointer_check(jl_codectx_t &ctx, Value *v)
@@ -1171,18 +1192,6 @@ static Value *emit_bounds_check(jl_codectx_t &ctx, const jl_cgval_t &ainfo, jl_v
     return im1;
 }
 
-// If given alignment is 0 and LLVM's assumed alignment for a load/store via ptr
-// might be stricter than the Julia alignment for jltype, return the alignment of jltype.
-// Otherwise return the given alignment.
-static unsigned julia_alignment(jl_value_t *jltype, unsigned alignment)
-{
-    if (!alignment) {
-        alignment = jl_datatype_align(jltype);
-        assert(alignment <= JL_HEAP_ALIGNMENT);
-        assert(JL_HEAP_ALIGNMENT % alignment == 0);
-    }
-    return alignment;
-}
 
 static Value *emit_unbox(jl_codectx_t &ctx, Type *to, const jl_cgval_t &x, jl_value_t *jt, Value* dest = NULL, bool volatile_store = false);
 
@@ -1210,9 +1219,9 @@ static jl_cgval_t typed_load(jl_codectx_t &ctx, Value *ptr, Value *idx_0based, j
     //}
     //else {
         Instruction *load = ctx.builder.CreateAlignedLoad(data, isboxed ?
-            alignment : julia_alignment(jltype, alignment), false);
+            alignment : llvm_alignment(jltype, alignment), false);
         if (isboxed)
-            load = maybe_mark_load_dereferenceable(load, true, jltype);
+            load = maybe_mark_load_dereferenceable(load, true, jltype, false);
         if (tbaa) {
             elt = tbaa_decorate(tbaa, load);
         }
@@ -1257,7 +1266,7 @@ static void typed_store(jl_codectx_t &ctx,
         data = ptr;
     }
     Instruction *store = ctx.builder.CreateAlignedStore(r, idx_0based ? ctx.builder.CreateGEP(data,
-        idx_0based) : data, isboxed ? alignment : julia_alignment(jltype, alignment));
+        idx_0based) : data, isboxed ? alignment : llvm_alignment(jltype, alignment));
     if (tbaa)
         tbaa_decorate(tbaa, store);
 }
@@ -1369,7 +1378,7 @@ static bool emit_getfield_unknownidx(jl_codectx_t &ctx,
             size_t minimum_field_size = (size_t)-1;
             for (size_t i = 0; i < nfields; ++i) {
                 minimum_field_size = std::min(minimum_field_size,
-                    dereferenceable_size(jl_field_type(stt, i)));
+                    dereferenceable_size(jl_field_type(stt, i), true));
                 if (minimum_field_size == 0)
                     break;
             }
@@ -1380,7 +1389,7 @@ static bool emit_getfield_unknownidx(jl_codectx_t &ctx,
                             ctx.builder.CreateGEP(decay_derived(
                             emit_bitcast(ctx, data_pointer(ctx, strct), T_pprjlvalue)), idx),
                             PointerType::get(T_prjlvalue, AddressSpace::Derived))),
-                    maybe_null,  minimum_field_size));
+                    maybe_null, minimum_field_size));
             if (maybe_null)
                 null_pointer_check(ctx, fld);
             *ret = mark_julia_type(ctx, fld, true, jl_any_type);
@@ -1483,8 +1492,7 @@ static jl_cgval_t emit_getfield_knownidx(jl_codectx_t &ctx, const jl_cgval_t &st
             bool maybe_null = idx >= (unsigned)jt->ninitialized;
             Instruction *Load = maybe_mark_load_dereferenceable(
                 ctx.builder.CreateLoad(T_prjlvalue, emit_bitcast(ctx, addr, T_pprjlvalue)),
-                maybe_null, jl_field_type(jt, idx)
-            );
+                maybe_null, jl_field_type(jt, idx), true);
             Value *fldv = tbaa_decorate(strct.tbaa, Load);
             if (maybe_null)
                 null_pointer_check(ctx, fldv);
@@ -1850,7 +1858,7 @@ static void init_bits_cgval(jl_codectx_t &ctx, Value *newv, const jl_cgval_t& v,
 {
     // newv should already be tagged
     if (v.ispointer()) {
-        emit_memcpy(ctx, newv, v, jl_datatype_size(v.typ), sizeof(void*));
+        emit_memcpy(ctx, newv, v, llvm_sizeof(v.typ), sizeof(void*));
     }
     else {
         init_bits_value(ctx, newv, v.V, tbaa);
@@ -2165,13 +2173,14 @@ static void emit_unionmove(jl_codectx_t &ctx, Value *dest, const jl_cgval_t &src
             }
             else {
                 Value *src_ptr = data_pointer(ctx, src);
-                unsigned nb = jl_datatype_size(typ);
-                unsigned alignment = julia_alignment(typ, 0);
+                unsigned nb = llvm_sizeof(typ);
+                unsigned alignment = llvm_alignment(typ, 0);
                 Value *nbytes = ConstantInt::get(T_size, nb);
-                if (skip) // copy dest -> dest to simulate an undef value / conditional copy
+                if (skip) { // TODO: this is VERY expensive
                     nbytes = ctx.builder.CreateSelect(skip,
                         ConstantInt::get(T_size, 0),
                         nbytes);
+                }
                 emit_memcpy(ctx, dest, src_ptr, nbytes, alignment, isVolatile, tbaa);
             }
         }
@@ -2188,8 +2197,8 @@ static void emit_unionmove(jl_codectx_t &ctx, Value *dest, const jl_cgval_t &src
         unsigned counter = 0;
         bool allunboxed = for_each_uniontype_small(
                 [&](unsigned idx, jl_datatype_t *jt) {
-                    unsigned nb = jl_datatype_size(jt);
-                    unsigned alignment = julia_alignment((jl_value_t*)jt, 0);
+                    unsigned nb = llvm_sizeof(jt);
+                    unsigned alignment = llvm_alignment((jl_value_t*)jt, 0);
                     BasicBlock *tempBB = BasicBlock::Create(jl_LLVMContext, "union_move", ctx.f);
                     ctx.builder.SetInsertPoint(tempBB);
                     switchInst->addCase(ConstantInt::get(T_int8, idx), tempBB);
@@ -2213,8 +2222,30 @@ static void emit_unionmove(jl_codectx_t &ctx, Value *dest, const jl_cgval_t &src
         ctx.builder.SetInsertPoint(postBB);
     }
     else {
+        assert(src.isboxed && "expected boxed value for sizeof/alignment computation");
         Value *datatype = emit_typeof_boxed(ctx, src);
         Value *copy_bytes = emit_datatype_size(ctx, datatype);
+        Value *max_bytes = NULL;
+        // In some cases, we know the destination isn't large enough to hold the whole value.
+        // Currently, we can detect those cases precisely with a isa test.
+        if (auto AI = dyn_cast<AllocaInst>(dest)) {
+            const DataLayout &DL =
+#if JL_LLVM_VERSION >= 40000
+                jl_data_layout;
+#else
+                jl_ExecutionEngine->getDataLayout();
+#endif
+            max_bytes = ConstantInt::get(copy_bytes->getType(), DL.getTypeStoreSize(AI->getAllocatedType()));
+            if (AI->isArrayAllocation())
+                max_bytes = ctx.builder.CreateNUWMul(max_bytes, AI->getArraySize());
+        }
+        if (auto AI = dyn_cast<Argument>(dest)) {
+            size_t bytes = AI->getDereferenceableBytes();
+            assert(bytes > 0);
+            max_bytes = ConstantInt::get(copy_bytes->getType(), bytes);
+        }
+        if (max_bytes)
+            copy_bytes = ctx.builder.CreateSelect(ctx.builder.CreateICmpULT(copy_bytes, max_bytes), copy_bytes, max_bytes);
         if (skip)
             copy_bytes = ctx.builder.CreateSelect(skip, ConstantInt::get(copy_bytes->getType(), 0), copy_bytes);
         emit_memcpy(ctx, dest, src, copy_bytes, /*TODO: min-align*/1);

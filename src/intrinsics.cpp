@@ -344,7 +344,7 @@ static Value *emit_unbox(jl_codectx_t &ctx, Type *to, const jl_cgval_t &x, jl_va
         return NULL;
     }
 
-    unsigned alignment = julia_alignment(jt, 0);
+    unsigned alignment = llvm_alignment(jt, 0);
     if (dest) {
         MDNode *tbaa = x.tbaa;
         // the memcpy intrinsic does not allow to specify different alias tags
@@ -353,7 +353,7 @@ static Value *emit_unbox(jl_codectx_t &ctx, Type *to, const jl_cgval_t &x, jl_va
         // x.tbaa ∪ tbaa_stack = tbaa_root if x.tbaa != tbaa_stack
         if (tbaa != tbaa_stack)
             tbaa = NULL;
-        emit_memcpy(ctx, dest, p, jl_datatype_size(jt), alignment, volatile_store, tbaa);
+        emit_memcpy(ctx, dest, p, llvm_sizeof(jt), alignment, volatile_store, tbaa);
         return NULL;
     }
     else {
