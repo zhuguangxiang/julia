@@ -1919,13 +1919,14 @@ function abstract_call_method(method::Method, @nospecialize(f), @nospecialize(si
     infstate = sv
     while !(infstate === nothing)
         infstate = infstate::InferenceState
-        if method === infstate.linfo.def
-            if infstate.linfo.specTypes == sig
-                # avoid widening when detecting self-recursion
-                # TODO: merge call cycle and return right away
-                topmost = nothing
-                break
-            end
+        unwrapped_if_cassette = unwrap_if_cassette(infstate)
+        if method === infstate.linfo.def && infstate.linfo.specTypes == sig
+            # avoid widening when detecting self-recursion
+            # TODO: merge call cycle and return right away
+            topmost = nothing
+            break
+        end
+        if unwrap_if_cassette(method) === unwrapped_if_cassette.linfo.def
             if topmost === nothing
                 # inspect the parent of this edge,
                 # to see if they are the same Method as sv
@@ -1939,11 +1940,11 @@ function abstract_call_method(method::Method, @nospecialize(f), @nospecialize(si
                         break
                     end
                 end
-                let parent = infstate.parent
+                let parent = unwrap_if_cassette(infstate).parent
                     # then check the parent link
                     if topmost === nothing && parent !== nothing
                         parent = parent::InferenceState
-                        if parent.cached && parent.linfo.def === sv.linfo.def
+                        if parent.cached && parent.linfo.def === unwrap_if_cassette(sv).linfo.def
                             topmost = infstate
                         end
                     end
