@@ -146,6 +146,10 @@ Language changes
 
   * The syntax `(x...)` for constructing a tuple is deprecated; use `(x...,)` instead (#24452).
 
+  * `AbstractArray` types that use unconventional (not 1-based) indexing can now support
+    `size`, `length`, and `@inbounds`. To optionally enforce conventional indices,
+    `Base.assert_oneindex(A)` has been added.
+
 Breaking changes
 ----------------
 

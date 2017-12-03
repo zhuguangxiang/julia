@@ -69,6 +69,17 @@ function indices(A)
     map(OneTo, size(A))
 end
 
+"""
+    Base.assert_oneindex(A)
+
+Do nothing if `A` has conventional [`Base.OneTo`](@ref) indices, otherwise throw an error.
+This function can be convenient if your code relies on the fact that array indexing starts at 1.
+"""
+assert_oneindex(A::AbstractArray) = assert_oneindex(indices(A))
+assert_oneindex(::Tuple{}) = nothing
+assert_oneindex(::NTuple{N,OneTo}) where N = nothing
+@noinline assert_oneindex(inds::Tuple) = error("indices $inds are not certain to start at 1")
+
 # Performance optimization: get rid of a branch on `d` in `indices(A, d)`
 # for d=1. 1d arrays are heavily used, and the first dimension comes up
 # in other applications.
