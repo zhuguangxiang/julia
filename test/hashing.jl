@@ -88,12 +88,15 @@ vals = Any[
     zeros(2, 2), spzeros(2, 2), Matrix(1.0I, 2, 2), sparse(1.0I, 2, 2),
     sparse(fill(1., 2, 2)), fill(1., 2, 2), sparse([0 0; 1 0]), [0 0; 1 0],
     [-0. 0; -0. 0.], SparseMatrixCSC(2, 2, [1, 3, 3], [1, 2], [-0., -0.]),
+    sparse(fill(1., 4)), sparse([1.,2,3,4]), sparse([0,0,1,0]),
     # issue #16364
     1:4, 1:1:4, 1:-1:0, 1.0:4.0, 1.0:1.0:4.0, linspace(1, 4, 4),
     'a':'e', ['a', 'b', 'c', 'd', 'e'],
     # check that hash is still consistent with heterogeneous arrays for which - is defined
     # for some pairs and not others
-    ["a", "b", 1, 2], ["a", 1, 2], ["a", "b", 2, 2], ["a", "a", 1, 2], ["a", "b", 2, 3]
+    ["a", "b", 1, 2], ["a", 1, 2], ["a", "b", 2, 2], ["a", "a", 1, 2], ["a", "b", 2, 3],
+    # issue #26011
+    [1,2,[3],[4]], [[1 2], [3 4]],
 ]
 
 for a in vals, b in vals
@@ -126,7 +129,13 @@ vals = Any[
     sparse([1, 2], [1, 1], [-0.0, 0.0], 3, 1), sparse([1, 2], [1, 1], [0.0, -0.0], 3, 1),
     sparse([1, 3], [1, 1], [-0.0, 0.0], 3, 1), sparse([1, 3], [1, 1], [0.0, -0.0], 3, 1),
     sparse([1, 2, 3], [1, 1, 1], [-1, 0, 1], 3, 1), sparse([1, 2, 3], [1, 1, 1], [-1.0, -0.0, 1.0], 3, 1),
-    sparse([1, 3], [1, 1], [-1, 0], 3, 1), sparse([1, 2], [1, 1], [-1, 0], 3, 1)
+    sparse([1, 3], [1, 1], [-1, 0], 3, 1), sparse([1, 2], [1, 1], [-1, 0], 3, 1),
+    sparsevec([1], [0], 1), sparsevec([1], [-0.0], 1),
+    sparsevec([1, 2], [-0.0, 0.0], 2), sparsevec([1, 2], [0.0, -0.0], 2),
+    sparsevec([1, 2], [-0.0, 0.0], 3), sparsevec([1, 2], [0.0, -0.0], 3),
+    sparsevec([1, 3], [-0.0, 0.0], 3), sparsevec([1, 3], [0.0, -0.0], 3),
+    sparsevec([1, 2, 3], [-1, 0, 1], 3), sparsevec([1, 2, 3], [-1.0, -0.0, 1.0], 3),
+    sparsevec([1, 3], [-1, 0], 3), sparsevec([1, 2], [-1, 0], 3),
 ]
 
 for a in vals

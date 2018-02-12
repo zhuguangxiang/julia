@@ -2061,3 +2061,50 @@ function fill!(A::Union{SparseVector, SparseMatrixCSC}, x)
     end
     return A
 end
+
+## Hashing
+_linloc(::typeof(identity), A, row, col) = row + (col-1)*size(A, 1)
+_linloc(::typeof(reverse), A, row, col) = length(A) + 1 - _linloc(identity, A, row, col)
+_colptr(A::SparseMatrixCSC) = A.colptr
+_colptr(V::SparseVector) = (1, length(V.nzind)+1)
+_rowval(A::SparseMatrixCSC) = A.rowval
+_rowval(V::SparseVector) = V.nzind
+function _hash3distinct(A, direction::Union{typeof(identity), typeof(reverse)}, upto, h)
+    seen = Set()
+    colptr = _colptr(A)
+    rowval = _rowval(A)
+    nzval = A.nzval
+    z = zero(eltype(A))
+    lastidx = 0
+    for col = direction(1:size(A, 2))
+        for j = direction(colptr[col]:colptr[col+1]-1)
+            idx = _linloc(direction, A, rowval[j], col)
+            if idx != lastidx+1 && !(z in seen)
+                # We skipped an unstored zero and need to hash it
+                lastidx+1 > upto && return (h, idx)
+                h = hash(z, hash(lastidx+1, h))
+                length(seen) >= 2 && return (h, lastidx+1)
+                push!(seen, z)
+            end
+            idx > upto && return (h, idx)
+            v = nzval[j]
+            if !(v in seen)
+                h = hash(v, hash(idx, h))
+                length(seen) >= 2 && return (h, idx)
+                push!(seen, v)
+            end
+            lastidx = idx
+        end
+    end
+    if lastidx+1 <= upto && !(z in seen)
+        # There was a final unstored zero we need to hash
+        h = hash(z, hash(lastidx+1, h))
+    end
+    return (h, upto)
+end
+function hash(A::Union{SparseVector,SparseMatrixCSC}, h::UInt)
+    h = hash(size(A), h)
+    h, loc = _hash3distinct(A, identity, length(A), h)
+    h, _ = _hash3distinct(A, reverse, length(A)-loc, h)
+    return h
+end

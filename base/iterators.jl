@@ -1097,4 +1097,9 @@ eltype(::Type{Stateful{VS, T}} where VS) where {T} = eltype(T)
 IteratorEltype(::Type{Stateful{VS,T}} where VS) where {T} = IteratorEltype(T)
 length(s::Stateful) = length(s.itr) - s.taken
 
+# Internal hashing optimization functions
+Base._hashcheckbounds(A, I::Take) = Base._hashcheckbounds(A, I.xs)
+Base._hashcheckbounds(A, I::Reverse) = Base._hashcheckbounds(A, I.itr)
+
+
 end
