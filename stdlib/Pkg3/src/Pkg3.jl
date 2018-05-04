@@ -1,4 +1,3 @@
-__precompile__(true)
 module Pkg3
 
 import Random
