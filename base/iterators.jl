@@ -10,7 +10,7 @@ import ..@__MODULE__, ..parentmodule
 const Base = parentmodule(@__MODULE__)
 using .Base:
     @inline, Pair, AbstractDict, IndexLinear, IndexCartesian, IndexStyle, AbstractVector, Vector,
-    tail, tuple_type_head, tuple_type_tail, tuple_type_cons, SizeUnknown, HasLength, HasShape,
+    tail, tuple_type_cons, SizeUnknown, HasLength, HasShape,
     IsInfinite, EltypeUnknown, HasEltype, OneTo, @propagate_inbounds, Generator, AbstractRange,
     linearindices, (:), |, +, -, !==, !, <=, <
 
@@ -738,9 +738,13 @@ julia> collect(Iterators.product(1:2,3:5))
 """
 product(iters...) = ProductIterator(iters)
 
-IteratorSize(::Type{ProductIterator{Tuple{}}}) = HasShape{0}()
-IteratorSize(::Type{ProductIterator{T}}) where {T<:Tuple} =
-    prod_iteratorsize( IteratorSize(tuple_type_head(T)), IteratorSize(ProductIterator{tuple_type_tail(T)}) )
+function IteratorSize(::Type{ProductIterator{T}}) where {T<:Tuple}
+    if isvatuple(T)
+        throw(ArgumentError("Cannot compute IteratorSize for ProductIterator{$T}"))
+    end
+    sizes = ntuple(i -> IteratorSize(fieldtype(T, i)), fieldcount(T))
+    return reduce(prod_iteratorsize, HasShape{0}(), sizes)
+end
 
 prod_iteratorsize(::HasLength, ::HasLength) = HasShape{2}()
 prod_iteratorsize(::HasLength, ::HasShape{N}) where {N} = HasShape{N+1}()
@@ -773,18 +777,21 @@ ndims(p::ProductIterator) = length(axes(p))
 length(P::ProductIterator) = prod(size(P))
 _length(p::ProductIterator) = prod(map(unsafe_length, axes(p)))
 
-IteratorEltype(::Type{ProductIterator{Tuple{}}}) = HasEltype()
-IteratorEltype(::Type{ProductIterator{Tuple{I}}}) where {I} = IteratorEltype(I)
 function IteratorEltype(::Type{ProductIterator{T}}) where {T<:Tuple}
-    I = tuple_type_head(T)
-    P = ProductIterator{tuple_type_tail(T)}
-    IteratorEltype(I) == EltypeUnknown() ? EltypeUnknown() : IteratorEltype(P)
+    if isvatuple(T)
+        throw(ArgumentError("Cannot compute IteratorEltype for ProductIterator{$T}"))
+    elseif any(ntuple(i -> IteratorEltype(fieldtype(T, i)) == EltypeUnknown(), fieldcount(T)))
+        return EltypeUnknown()
+    end
+    return HasEltype()
 end
 
-eltype(::Type{<:ProductIterator{I}}) where {I} = _prod_eltype(I)
-_prod_eltype(::Type{Tuple{}}) = Tuple{}
-_prod_eltype(::Type{I}) where {I<:Tuple} =
-    Base.tuple_type_cons(eltype(tuple_type_head(I)),_prod_eltype(tuple_type_tail(I)))
+function eltype(::Type{<:ProductIterator{T}}) where {T<:Tuple}
+    if isvatuple(T)
+        throw(ArgumentError("Cannot compute eltype for tuple type $T"))
+    end
+    return Tuple{ntuple(i -> eltype(fieldtype(T, i)), fieldcount(T))...}
+end
 
 start(::ProductIterator{Tuple{}}) = false
 next(::ProductIterator{Tuple{}}, state) = (), true
