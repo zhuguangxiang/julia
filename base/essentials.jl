@@ -240,10 +240,11 @@ function typename(a::Union)
 end
 typename(union::UnionAll) = typename(union.body)
 
-convert(::Type{T}, x::T) where {T<:Tuple{Any, Vararg{Any}}} = x
-convert(::Type{Tuple{}}, x::Tuple{Any, Vararg{Any}}) = throw(MethodError(convert, (Tuple{}, x)))
-convert(::Type{T}, x::Tuple{Any, Vararg{Any}}) where {T<:Tuple} =
-    (convert(tuple_type_head(T), x[1]), convert(tuple_type_tail(T), tail(x))...)
+convert(::Type{T}, x::T) where {T<:Tuple} = x
+function convert(::Type{T}, x::Tuple) where {T<:Tuple}
+    isvatuple(T) || nfields(x) === fieldcount(T) || throw(MethodError(convert, (T, x)))
+    return ntuple(i -> convert(fieldtype(T, i), x[i]), nfields(x))
+end
 
 # TODO: the following definitions are equivalent (behaviorally) to the above method
 # I think they may be faster / more efficient for inference,
