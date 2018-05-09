@@ -207,6 +207,8 @@ function typename(a::Union)
 end
 typename(union::UnionAll) = typename(union.body)
 
+fieldtypes(::Type{T}) where {T<:Tuple} = ntuple(i -> fieldtype(T, i), fieldcount(T))
+
 convert(::Type{T}, x::T) where {T<:Tuple} = x
 function convert(::Type{T}, x::X) where {T<:Tuple,X<:Tuple}
     isvatuple(T) || fieldcount(X) === fieldcount(T) || throw(MethodError(convert, (T, x)))

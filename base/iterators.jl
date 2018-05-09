@@ -24,10 +24,12 @@ import .Base:
 
 export enumerate, zip, rest, countfrom, take, drop, cycle, repeated, product, flatten, partition
 
-_min_length(a, b, ::IsInfinite, ::IsInfinite) = min(length(a),length(b)) # inherit behaviour, error
-_min_length(a, b, A, ::IsInfinite) = length(a)
-_min_length(a, b, ::IsInfinite, B) = length(b)
-_min_length(a, b, A, B) = min(length(a),length(b))
+_length_or_isinfinite(i) = (s = IteratorSize(i); isa(s, IsInfinite) ? s : length(x))
+
+_min_length(x, y) = min(x, y)
+_min_length(x, ::IsInfinite) = x
+_min_length(::IsInfinite, y) = y
+_min_length(::IsInfinite, ::IsInfinite) = IsInfinite()
 
 _diff_length(a, b, A, ::IsInfinite) = 0
 _diff_length(a, b, ::IsInfinite, ::IsInfinite) = 0
@@ -248,56 +250,8 @@ get(f::Base.Callable, collection::Pairs, key) = get(f, v.data, key)
 
 # zip
 
-abstract type AbstractZipIterator end
-
-zip_iteratorsize(a, b) = and_iteratorsize(a,b) # as `and_iteratorsize` but inherit `Union{HasLength,IsInfinite}` of the shorter iterator
-zip_iteratorsize(::HasLength, ::IsInfinite) = HasLength()
-zip_iteratorsize(::HasShape, ::IsInfinite) = HasLength()
-zip_iteratorsize(a::IsInfinite, b) = zip_iteratorsize(b,a)
-zip_iteratorsize(a::IsInfinite, b::IsInfinite) = IsInfinite()
-
-
-struct Zip1{I} <: AbstractZipIterator
-    a::I
-end
-zip(a) = Zip1(a)
-length(z::Zip1) = length(z.a)
-size(z::Zip1) = size(z.a)
-axes(z::Zip1) = axes(z.a)
-eltype(::Type{Zip1{I}}) where {I} = Tuple{eltype(I)}
-@inline start(z::Zip1) = start(z.a)
-@propagate_inbounds function next(z::Zip1, st)
-    n = next(z.a,st)
-    return ((n[1],), n[2])
-end
-@inline done(z::Zip1, st) = done(z.a,st)
-
-IteratorSize(::Type{Zip1{I}}) where {I} = IteratorSize(I)
-IteratorEltype(::Type{Zip1{I}}) where {I} = IteratorEltype(I)
-
-struct Zip2{I1, I2} <: AbstractZipIterator
-    a::I1
-    b::I2
-end
-zip(a, b) = Zip2(a, b)
-length(z::Zip2) = _min_length(z.a, z.b, IteratorSize(z.a), IteratorSize(z.b))
-size(z::Zip2) = promote_shape(size(z.a), size(z.b))
-axes(z::Zip2) = promote_shape(axes(z.a), axes(z.b))
-eltype(::Type{Zip2{I1,I2}}) where {I1,I2} = Tuple{eltype(I1), eltype(I2)}
-@inline start(z::Zip2) = (start(z.a), start(z.b))
-@propagate_inbounds function next(z::Zip2, st)
-    n1 = next(z.a,st[1])
-    n2 = next(z.b,st[2])
-    return ((n1[1], n2[1]), (n1[2], n2[2]))
-end
-@inline done(z::Zip2, st) = done(z.a,st[1]) | done(z.b,st[2])
-
-IteratorSize(::Type{Zip2{I1,I2}}) where {I1,I2} = zip_iteratorsize(IteratorSize(I1),IteratorSize(I2))
-IteratorEltype(::Type{Zip2{I1,I2}}) where {I1,I2} = and_iteratoreltype(IteratorEltype(I1),IteratorEltype(I2))
-
-struct Zip{I, Z<:AbstractZipIterator} <: AbstractZipIterator
-    a::I
-    z::Z
+struct Zip{I<:Tuple}
+    iters::I
 end
 
 """
@@ -329,25 +283,39 @@ julia> first(c)
 (1, "e")
 ```
 """
-zip(a, b, c...) = Zip(a, zip(b, c...))
-length(z::Zip) = _min_length(z.a, z.z, IteratorSize(z.a), IteratorSize(z.z))
-size(z::Zip) = promote_shape(size(z.a), size(z.z))
-axes(z::Zip) = promote_shape(axes(z.a), axes(z.z))
-eltype(::Type{Zip{I,Z}}) where {I,Z} = tuple_type_cons(eltype(I), eltype(Z))
-@inline start(z::Zip) = tuple(start(z.a), start(z.z))
-@propagate_inbounds function next(z::Zip, st)
-    n1 = next(z.a, st[1])
-    n2 = next(z.z, st[2])
-    (tuple(n1[1], n2[1]...), (n1[2], n2[2]))
+zip(args...) = Zip(args...)
+
+function length(z::Zip)
+    result = mapreduce(_length_or_isinfinite, _min_length, z.iters)
+    if isa(result, IsInfinite)
+        throw(ArgumentError("cannot call length on IsInfinite Zip iterator $z"))
+    end
+    return result
 end
-@inline done(z::Zip, st) = done(z.a,st[1]) | done(z.z,st[2])
 
-IteratorSize(::Type{Zip{I1,I2}}) where {I1,I2} = zip_iteratorsize(IteratorSize(I1),IteratorSize(I2))
-IteratorEltype(::Type{Zip{I1,I2}}) where {I1,I2} = and_iteratoreltype(IteratorEltype(I1),IteratorEltype(I2))
+size(z::Zip) = mapreduce(size, promote_shape, (), z.iters)
+axes(z::Zip) = mapreduce(axes, promote_shape, (), z.iters)
+eltype(::Type{Zip{I}}) where I = Tuple{map(eltype, fieldtypes(I))...}
 
-reverse(z::Zip1) = Zip1(reverse(z.a))
-reverse(z::Zip2) = Zip2(reverse(z.a), reverse(z.b))
-reverse(z::Zip) = Zip(reverse(z.a), reverse(z.z))
+@inline start(z::Zip) = map(start, z.iters)
+
+@propagate_inbounds next(z::Zip, states)
+    n = map(next, z.iters, states)
+    return map(x -> getfield(x, 1), n), map(x -> getfield(x, 2), n)
+end
+
+@inline done(z::Zip, st) = mapreduce(done, |, zip(z.iters, st))
+
+IteratorSize(::Type{Zip{I}}) where {I} = mapreduce(IteratorSize, zip_iteratorsize, fieldtypes(I))
+IteratorEltype(::Type{Zip{I}}) where {I} = mapreduce(IteratorEltype, and_iteratoreltype, fieldtypes(I))
+
+reverse(z::Zip) = Zip(map(reverse, z.iters))
+
+zip_iteratorsize(a, b) = and_iteratorsize(a, b) # as `and_iteratorsize` but inherit `Union{HasLength,IsInfinite}` of the shorter iterator
+zip_iteratorsize(::HasLength, ::IsInfinite) = HasLength()
+zip_iteratorsize(::HasShape, ::IsInfinite) = HasLength()
+zip_iteratorsize(a::IsInfinite, b) = zip_iteratorsize(b, a)
+zip_iteratorsize(a::IsInfinite, b::IsInfinite) = IsInfinite()
 
 # filter
 
