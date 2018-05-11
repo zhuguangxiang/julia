@@ -214,9 +214,13 @@ end
 typename(union::UnionAll) = typename(union.body)
 
 convert(::Type{T}, x::T) where {T<:Tuple} = x
-function convert(::Type{T}, x::Tuple) where {T<:Tuple}
-    isvatuple(T) || nfields(x) === fieldcount(T) || throw(MethodError(convert, (T, x)))
-    return ntuple(i -> convert(fieldtype(T, i), x[i]), nfields(x))
+
+tuple_convert_check(T, x) = isvatuple(T) || nfields(x) === fieldcount(T) || throw(MethodError(convert, (T, x)))
+
+function convert(::Type{T}, x::NTuple{N,Any}) where {T<:Tuple,N}
+    tuple_convert_check(T, x)
+    # TODO: this is inferring Unions for concrete converts
+    return ntuple(i -> convert(fieldtype(T, i), x[i]), Val(N))
 end
 
 # TODO: the following definitions are equivalent (behaviorally) to the above method

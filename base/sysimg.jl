@@ -273,18 +273,16 @@ include("broadcast.jl")
 using .Broadcast
 
 # define the real ntuple functions
-@inline function ntuple(f::F, ::Val{N}) where {F,N}
+@generated function ntuple(f::F, ::Val{N}) where {F,N}
     N::Int
     (N >= 0) || throw(ArgumentError(string("tuple length should be ≥0, got ", N)))
-    if @generated
-        quote
-            @nexprs $N i -> t_i = f(i)
-            @ncall $N tuple t
-        end
-    else
-        Tuple(f(i) for i = 1:N)
+    tuple_expr = Expr(:tuple, [:(f($i)) for i in 1:N]...)
+    quote
+        $(Expr(:meta, :inline))
+        $tuple_expr
     end
 end
+
 @inline function fill_to_length(t::Tuple, val, ::Val{N}) where {N}
     M = length(t)
     M > N && throw(ArgumentError("input tuple of length $M, requested $N"))

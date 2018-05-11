@@ -145,6 +145,13 @@ ntuple(f, ::Val{0}) = ()
 ntuple(f, ::Val{1}) = (@_inline_meta; (f(1),))
 ntuple(f, ::Val{2}) = (@_inline_meta; (f(1), f(2)))
 ntuple(f, ::Val{3}) = (@_inline_meta; (f(1), f(2), f(3)))
+ntuple(f, ::Val{4}) = (@_inline_meta; (f(1), f(2), f(3), f(4)))
+ntuple(f, ::Val{5}) = (@_inline_meta; (f(1), f(2), f(3), f(4), f(5)))
+ntuple(f, ::Val{6}) = (@_inline_meta; (f(1), f(2), f(3), f(4), f(5), f(6)))
+ntuple(f, ::Val{7}) = (@_inline_meta; (f(1), f(2), f(3), f(4), f(5), f(6), f(7)))
+ntuple(f, ::Val{8}) = (@_inline_meta; (f(1), f(2), f(3), f(4), f(5), f(6), f(7), f(8)))
+ntuple(f, ::Val{9}) = (@_inline_meta; (f(1), f(2), f(3), f(4), f(5), f(6), f(7), f(8), f(9)))
+ntuple(f, ::Val{10}) = (@_inline_meta; (f(1), f(2), f(3), f(4), f(5), f(6), f(7), f(8), f(9), f(10)))
 
 # 1 argument function
 map(f, t::Tuple{})              = ()
