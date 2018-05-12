@@ -551,26 +551,27 @@ macro uint128_str(s)
     return parse(UInt128, s)
 end
 
+big!(d, s::String) = d
 macro big_str(s)
     if '_' in s
-        # remove _ in s[2:end-1]
-        bf = IOBuffer(maxsize=lastindex(s))
-        print(bf, s[1])
-        for c in SubString(s, 2, lastindex(s)-1)
-            c != '_' && print(bf, c)
+        if !startswith(s, '_') && !endswith(s, '_')
+            # remove _ in s[2:(end - 1)]
+            s = filter(!(==('_')), s)
         end
-        print(bf, s[end])
-        seekstart(bf)
-        n = tryparse(BigInt, String(take!(bf)))
-        n === nothing || return n
+        big = tryparse(BigInt, s)
     else
-        n = tryparse(BigInt, s)
-        n === nothing || return n
-        n = tryparse(BigFloat, s)
-        n === nothing || return n
+        big = tryparse(BigInt, s)
+        if big === nothing
+            big = tryparse(BigFloat, s)
+        end
     end
-    message = "invalid number format $s for BigInt or BigFloat"
-    return :(throw(ArgumentError($message)))
+    big === nothing && throw(ArgumentError("invalid number format $s for BigInt or BigFloat"))
+    if big isa BigInt
+        big_str = string(big, base = 62)
+    else
+        big_str = string(big)
+    end
+    return :(big!($big, $big_str))
 end
 
 ## integer promotions ##

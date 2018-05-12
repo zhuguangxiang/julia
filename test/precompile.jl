@@ -142,6 +142,9 @@ try
 
               g() = override(1.0)
               Test.@test g() === 2.0 # compile this
+
+              const abigint() = big"12_34"
+              const abigfloat() = big"12.34"
           end
           """)
     @test_throws ErrorException Core.kwfunc(Base.nothing) # make sure `nothing` didn't have a kwfunc (which would invalidate the attempted test)
@@ -164,6 +167,10 @@ try
         @test Foo.override(1.0e0) == Float64('a')
         @test Foo.override(1.0f0) == 'b'
         @test Foo.override(UInt(1)) == 2
+
+        # Issue #15722
+        @test Foo.abigint()::BigInt == 12_34
+        @test Foo.abigfloat()::BigFloat == big"12.34"
     end
 
     cachedir = joinpath(dir, "compiled", "v$(VERSION.major).$(VERSION.minor)")

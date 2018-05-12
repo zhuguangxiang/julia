@@ -989,4 +989,19 @@ function Base.lerpi(j::Integer, d::Integer, a::BigFloat, b::BigFloat)
     fma(t, b, fma(-t, a, a))
 end
 
+@noinline function Base.big!(d::BigFloat, s::String)
+    if d.d == C_NULL
+        setprecision(BigFloat, d.prec) do
+            d′ = parse(BigFloat, s)
+            d.prec = d′.prec
+            d.sign = d′.sign
+            d.exp = d′.exp
+            finalizer(cglobal((:mpfr_clear, :libmpfr)), d)
+            d.d = d′.d
+            ccall((:mpfr_init2,:libmpfr), Cvoid, (Ref{BigFloat}, Clong), d′, d.prec)
+        end
+    end
+    return d
+end
+
 end #module
