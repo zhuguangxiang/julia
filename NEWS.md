@@ -688,6 +688,9 @@ Library improvements
   * `Sys.which()` provides a cross-platform method to find executable files, similar to
     the Unix `which` command. ([#26559])
 
+  * `Sys.glibc()` determines whether glibc is linked to Julia, and `Sys.glibc_version()`
+    returns the version of the linked glibc if applicable. ([#27223])
+
 Compiler/Runtime improvements
 -----------------------------
 
@@ -1560,3 +1563,4 @@ Command-line option changes
 [#26670]: https://github.com/JuliaLang/julia/issues/26670
 [#26775]: https://github.com/JuliaLang/julia/issues/26775
 [#26932]: https://github.com/JuliaLang/julia/issues/26932
+[#27223]: https://github.com/JuliaLang/julia/issues/27223
