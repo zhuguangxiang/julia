@@ -503,7 +503,11 @@ for precomp in ("yes", "no")
         -E 'include("____nonexistent_file")'`)
     @test !success
     @test out == ""
-    @test occursin("include_relative(::Module, ::String) at $(joinpath(".", "loading.jl"))", bt)
+    if Sys.islinux() && !Sys.isglibc() && precomp == "yes"
+        @test_broken occursin("include_relative(::Module, ::String) at $(joinpath(".", "loading.jl"))", bt)
+    else
+        @test occursin("include_relative(::Module, ::String) at $(joinpath(".", "loading.jl"))", bt)
+    end
     lno = match(r"at \.[\/\\]loading\.jl:(\d+)", bt)
     @test length(lno.captures) == 1
     @test parse(Int, lno.captures[1]) > 0
