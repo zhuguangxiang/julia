@@ -67,6 +67,13 @@ A symbol representing the name of the operating system, as returned by `uname` o
 const KERNEL = ccall(:jl_get_UNAME, Any, ())
 
 """
+    Sys.LIBC
+
+A symbol representing the name of the system's C runtime library that's linked to Julia.
+"""
+const LIBC = ccall(:jl_get_LIBC, Any, ())
+
+"""
     Sys.MACHINE
 
 A string containing the build triple.

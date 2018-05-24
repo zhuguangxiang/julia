@@ -628,6 +628,11 @@ JL_DLLEXPORT jl_sym_t *jl_get_ARCH(void)
     return jl_symbol(JL_BUILD_ARCH);
 }
 
+JL_DLLEXPORT jl_sym_t *jl_get_LIBC(void)
+{
+    return jl_symbol(JL_BUILD_LIBC);
+}
+
 JL_DLLEXPORT size_t jl_maxrss(void)
 {
 #if defined(_OS_WINDOWS_)

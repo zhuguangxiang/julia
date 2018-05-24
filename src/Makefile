@@ -30,6 +30,7 @@ FLAGS += -DJL_BUILD_UNAME='"NT"'
 else
 FLAGS += -DJL_BUILD_UNAME='"$(OS)"'
 endif
+FLAGS += -DJL_BUILD_LIBC='"$(LIBC)"'
 
 ifeq ($(OS),FreeBSD)
 FLAGS += -I$(LOCALBASE)/include
