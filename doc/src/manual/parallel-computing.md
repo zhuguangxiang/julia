@@ -41,7 +41,7 @@ You can wait for a remote call to finish by calling [`wait`](@ref) on the return
 and you can obtain the full value of the result using [`fetch`](@ref).
 
 On the other hand, [`RemoteChannel`](@ref) s are rewritable. For example, multiple processes can
-co-ordinate their processing by referencing the same remote `Channel`.
+co-ordinate their processing by referencing the same remote [`Channel`](@ref).
 
 Each process has an associated identifier. The process providing the interactive Julia prompt
 always has an `id` equal to 1. The processes used by default for parallel operations are referred
@@ -310,16 +310,16 @@ with embedded global references (under `Main` module only) manage globals as fol
   ```
 
   Executing the above snippet results in `Main.A` on worker 2 having a different value from
-  `Main.A` on worker 3, while the value of `Main.A` on node 1 is set to `nothing`.
+  `Main.A` on worker 3, while the value of `Main.A` on node 1 is set to [`nothing`](@ref).
 
 As you may have realized, while memory associated with globals may be collected when they are reassigned
 on the master, no such action is taken on the workers as the bindings continue to be valid.
-[`clear!`](@ref) can be used to manually reassign specific globals on remote nodes to `nothing` once
+[`clear!`](@ref) can be used to manually reassign specific globals on remote nodes to [`nothing`](@ref) once
 they are no longer required. This will release any memory associated with them as part of a regular garbage
 collection cycle.
 
 Thus programs should be careful referencing globals in remote calls. In fact, it is preferable to avoid them
-altogether if possible. If you must reference globals, consider using `let` blocks to localize global variables.
+altogether if possible. If you must reference globals, consider using [`let`](@ref) blocks to localize global variables.
 
 For example:
 
@@ -472,7 +472,7 @@ process.
 
 Julia's parallel programming platform uses [Tasks (aka Coroutines)](@ref man-tasks) to switch among multiple
 computations. Whenever code performs a communication operation like [`fetch`](@ref) or [`wait`](@ref),
-the current task is suspended and a scheduler picks another task to run. A task is restarted when
+the current task is suspended and a scheduler picks another task to run. A [`Task`](@ref) is restarted when
 the event it is waiting for completes.
 
 For many problems, it is not necessary to think about tasks directly. However, they can be used
@@ -708,7 +708,7 @@ too.
 
 Remote references always refer to an implementation of an `AbstractChannel`.
 
-A concrete implementation of an `AbstractChannel` (like `Channel`), is required to implement
+A concrete implementation of an `AbstractChannel` (like [`Channel`](@ref)), is required to implement
 [`put!`](@ref), [`take!`](@ref), [`fetch`](@ref), [`isready`](@ref) and [`wait`](@ref).
 The remote object referred to by a [`Future`](@ref) is stored in a `Channel{Any}(1)`, i.e., a
 `Channel` of size 1 capable of holding objects of `Any` type.
@@ -1207,7 +1207,7 @@ would typically specify only `io` or `host` / `port`:
     connect to the workers from the master process.
   * `userdata` is provided for custom cluster managers to store their own worker-specific information.
 
-`manage(manager::FooManager, id::Integer, config::WorkerConfig, op::Symbol)` is called at different
+[`manage(manager::FooManager, id::Integer, config::WorkerConfig, op::Symbol)`](@ref Distributed.manage) is called at different
 times during the worker's lifetime with appropriate `op` values:
 
   * with `:register`/`:deregister` when a worker is added / removed from the Julia worker pool.
@@ -1237,7 +1237,7 @@ connect(manager::FooManager, pid::Integer, config::WorkerConfig)
 kill(manager::FooManager, pid::Int, config::WorkerConfig)
 ```
 
-The default implementation (which uses TCP/IP sockets) is implemented as `connect(manager::ClusterManager, pid::Integer, config::WorkerConfig)`.
+The default implementation (which uses TCP/IP sockets) is implemented as [`connect(manager::ClusterManager, pid::Integer, config::WorkerConfig)`](@ref Distributed.connect).
 
 `connect` should return a pair of `IO` objects, one for reading data sent from worker `pid`, and
 the other to write data that needs to be sent to worker `pid`. Custom cluster managers can use
@@ -1266,9 +1266,9 @@ When using custom transports:
     it carries information on *how to connect* to a worker. For example, the TCP/IP socket transport
     uses this field to specify the `(host, port)` tuple at which to connect to a worker.
 
-`kill(manager, pid, config)` is called to remove a worker from the cluster. On the master process,
+[`kill(manager, pid, config)`](@ref Distributed.kill) is called to remove a worker from the cluster. On the master process,
 the corresponding `IO` objects must be closed by the implementation to ensure proper cleanup.
-The default implementation simply executes an `exit()` call on the specified remote worker.
+The default implementation simply executes an [`exit()`](@ref) call on the specified remote worker.
 
 The Examples folder `clustermanager/simple` is an example that shows a simple implementation using UNIX domain
 sockets for cluster setup.
@@ -1327,7 +1327,7 @@ For example, cookies can be pre-shared and hence not specified as a startup argu
 
 ## Specifying Network Topology (Experimental)
 
-The keyword argument `topology` passed to `addprocs` is used to specify how the workers must be
+The keyword argument `topology` passed to [`addprocs`](@ref Distributed.addprocs) is used to specify how the workers must be
 connected to each other:
 
   * `:all_to_all`, the default: all workers are connected to each other.
