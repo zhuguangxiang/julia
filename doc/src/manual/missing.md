@@ -191,7 +191,7 @@ Control flow operators including [`if`](@ref), [`while`](@ref) and the
 [ternary operator](@ref man-conditional-evaluation) `x ? y : z`
 do not allow for missing values. This is because of the uncertainty about whether
 the actual value would be `true` or `false` if we could observe it,
-which implies that we do not know how the program should behave. A `TypeError`
+which implies that we do not know how the program should behave. A [`TypeError`](@ref)
 is thrown as soon as a `missing` value is encountered in this context
 ```jldoctest
 julia> if missing
@@ -256,7 +256,7 @@ julia> Array{Union{Missing, String}}(missing, 2, 3)
 
 An array allowing for `missing` values but which does not contain any such value
 can be converted back to an array which does not allow for missing values using
-[`convert`](@ref). If the array contains `missing` values, a `MethodError` is thrown
+[`convert`](@ref). If the array contains `missing` values, a [`MethodError`](@ref) is thrown
 during conversion
 ```jldoctest
 julia> x = Union{Missing, String}["a", "b"]
