@@ -28,7 +28,8 @@ function fake_repl(f; options::REPL.Options=REPL.Options(confirm_exit=false))
     Base.link_pipe!(output, reader_supports_async=true, writer_supports_async=true)
     Base.link_pipe!(err, reader_supports_async=true, writer_supports_async=true)
 
-    repl = REPL.LineEditREPL(FakeTerminal(input.out, output.in, err.in), true)
+    term = FakeTerminal(IOContext(input.out, :color => true), output.in, err.in)
+    repl = REPL.LineEditREPL(term)
     repl.options = options
 
     f(input.in, output.out, repl)
@@ -738,7 +739,7 @@ mutable struct Error19864 <: Exception; end
 function test19864()
     @eval Base.showerror(io::IO, e::Error19864) = print(io, "correct19864")
     buf = IOBuffer()
-    REPL.print_response(buf, Error19864(), [], false, false, nothing)
+    REPL.print_response(buf, Error19864(), [], false, nothing)
     return String(take!(buf))
 end
 @test occursin("correct19864", test19864())
