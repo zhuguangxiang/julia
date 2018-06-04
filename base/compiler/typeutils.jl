@@ -125,3 +125,18 @@ function _switchtupleunion(t::Vector{Any}, i::Int, tunion::Vector{Any}, @nospeci
     end
     return tunion
 end
+
+# unioncomplexity corresponds to unionlen after recursively pulling out all unions in
+# covariant positions to the top level, e.g. Tuple{Union{A,B}} -> Union{Tuple{A},Tuple{B}},
+# as may be produced by tuplemerge
+unioncomplexity(u::Union) = unioncomplexity(u.a) + unioncomplexity(u.b)
+function unioncomplexity(t::DataType)
+    t.name === Tuple.name || return 1
+    c = 1
+    for ti in t.parameters
+        c *= unioncomplexity(ti)
+    end
+    return c
+end
+unioncomplexity(u::UnionAll) = unioncomplexity(u.body) * unioncomplexity(u.var.ub)
+unioncomplexity(@nospecialize(x)) = 1
