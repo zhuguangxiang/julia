@@ -6170,3 +6170,8 @@ translate27368(name::Symbol) =
 translate27368(::Type{Val{name}}) where {name} =
     field27368(name)
 @test isa(translate27368(:name), Combinator27368)
+
+# issue #22291
+wrap22291(ind) = (ind...,)
+@test @inferred(wrap22291(1)) == (1,)
+@test @inferred(wrap22291((1, 2))) == (1, 2)
