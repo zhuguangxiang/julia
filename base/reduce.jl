@@ -449,10 +449,22 @@ The return type is `Int` for signed integers of less than system word size, and
 `UInt` for unsigned integers of less than system word size.  For all other
 arguments, a common return type is found to which all arguments are promoted.
 
+!!! note
+    If `itr` contains `NaN` or [`missing`](@ref) values, the result is also
+    `NaN` or `missing` (`missing` takes precedence if `itr` contains both).
+    Use the [`skipmissing`](@ref) function to omit `missing` entries and compute
+    the sum of non-missing values.
+
 # Examples
 ```jldoctest
 julia> sum(1:20)
 210
+
+julia> sum([1, missing, 3])
+missing
+
+julia> sum(skipmissing([1, missing, 3]))
+4
 ```
 """
 sum(a) = sum(identity, a)
@@ -485,10 +497,22 @@ The return type is `Int` for signed integers of less than system word size, and
 `UInt` for unsigned integers of less than system word size.  For all other
 arguments, a common return type is found to which all arguments are promoted.
 
+!!! note
+    If `itr` contains `NaN` or [`missing`](@ref) values, the result is also
+    `NaN` or `missing` (`missing` takes precedence if `itr` contains both).
+    Use the [`skipmissing`](@ref) function to omit `missing` entries and compute
+    the product of non-missing values.
+
 # Examples
 ```jldoctest
 julia> prod(1:20)
 2432902008176640000
+
+julia> prod([1, missing, 3])
+missing
+
+julia> prod(skipmissing([1, missing, 3]))
+3
 ```
 """
 prod(a) = mapreduce(identity, mul_prod, a)

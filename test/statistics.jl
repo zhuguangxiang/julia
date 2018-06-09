@@ -42,6 +42,11 @@ end
     @test isnan(median([NaN,0.0]))
     @test isequal(median([NaN 0.0; 1.2 4.5], dims=2), reshape([NaN; 2.85], 2, 1))
 
+    @test ismissing(median([1, missing]))
+    @test ismissing(median([NaN, missing]))
+    @test ismissing(median([missing, NaN]))
+    @test median(skipmissing([1, missing, 2])) === 1.5
+
     @test median!([1 2 3 4]) == 2.5
     @test median!([1 2; 3 4]) == 2.5
 
@@ -70,6 +75,12 @@ end
     @test isnan(mean([-Inf,Inf]))
     @test isequal(mean([NaN 0.0; 1.2 4.5], dims=2), reshape([NaN; 2.85], 2, 1))
 
+    @test ismissing(mean([1, missing]))
+    @test ismissing(mean([NaN, missing]))
+    @test ismissing(mean([missing, NaN]))
+    @test isequal(mean([missing 1.0; 2.0 3.0], dims=1), [missing 2.0])
+    @test mean(skipmissing([1, missing, 2])) === 1.5
+
     # Check that small types are accumulated using wider type
     for T in (Int8, UInt8)
         x = [typemax(T) typemax(T)]
@@ -94,6 +105,10 @@ end
     @test quantile([1, 2, 3, 4], (0.5,)) == (2.5,)
     @test quantile([4, 9, 1, 5, 7, 8, 2, 3, 5, 17, 11], (0.1, 0.2, 0.4, 0.9)) == (2.0, 3.0, 5.0, 11.0)
     @test quantile([1, 2, 3, 4], ()) == ()
+
+    @test_throws ArgumentError quantile([1, missing], 0.5)
+    @test_throws ArgumentError quantile([1, NaN], 0.5)
+    @test quantile(skipmissing([1, missing, 2]), 0.5) === 1.5
 end
 
 # StatsBase issue 164
