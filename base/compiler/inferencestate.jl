@@ -91,8 +91,12 @@ function InferenceState(result::InferenceResult, src::CodeInfo,
         sp = svec(sp...)
     end
 
-    nssavalues = src.ssavaluetypes::Int
-    src.ssavaluetypes = Any[ NOT_FOUND for i = 1:nssavalues ]
+    if !src.inferred
+      nssavalues = src.ssavaluetypes::Int
+      src.ssavaluetypes = Any[ NOT_FOUND for i = 1:nssavalues ]
+    else
+      nssavalues = length(src.ssavaluetypes)
+    end
 
     n = length(code)
     s_edges = Any[ () for i = 1:n ]
