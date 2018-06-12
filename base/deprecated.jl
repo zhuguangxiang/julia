@@ -323,6 +323,23 @@ end
 @deprecate cat_t(::Type{Val{N}}, ::Type{T}, A, B) where {N,T} cat_t(T, A, B, dims=Val(N)) false
 @deprecate reshape(A::AbstractArray, ::Type{Val{N}}) where {N} reshape(A, Val(N))
 
+# issue #27474
+function reshape(parent::AbstractArray, ndims::Val{N}) where N
+    d = ndims(parent)
+    if N <= d
+        sizes = String[ "size(A, $i)" for i = 1:N-1 ]
+        depwarn(string("`reshape(A, Val(N)) is deprecated. Use `reshape(A, ",
+                       join(sizes, ", "),
+                       ":)` instead."), :reshape)
+        return reshape(parent, size(parent)[1:N-1]..., :)
+    else
+        depwarn(string("`reshape(A, Val(N)) is deprecated. Use `reshape(A, size(A)..., ",
+                       join(fill("1", N-d), ", "),
+                       ")` instead."), :reshape)
+        return reshape(parent, size(parent)..., fill(1, N-d)...)
+    end
+end
+
 # Issue #27100
 @deprecate cat(dims, As...) cat(As..., dims=dims)
 @deprecate cat_t(dims, ::Type{T}, As...) where {T}  cat_t(T, As...; dims=dims) false
