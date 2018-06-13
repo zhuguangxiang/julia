@@ -1307,3 +1307,6 @@ f26453(x::T,y::T) where {S,T>:S} = 0
 g26453(x::T,y::T) where {S,T>:S} = T
 @test_throws UndefVarError(:T) g26453(1,1)
 @test issub_strict((Tuple{T,T} where T), (Tuple{T,T} where {S,T>:S}))
+
+@testintersect(Union{Int8,Int16,Int32}, Union{Int8,Int16,Int64}, Union{Int8, Int16})
+@testintersect(Union{Int8,Int16,Float64}, Integer, Union{Int8, Int16})
