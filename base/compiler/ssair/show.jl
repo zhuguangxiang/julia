@@ -92,7 +92,7 @@ function print_node(io::IO, idx::Int, @nospecialize(stmt), used, argnames, maxsi
     end
 end
 
-function compute_inlining_depth(linetable, iline::Int)
+function compute_inlining_depth(linetable, iline::Int32)
     depth = 0
     while iline != 0
         linetable[iline].inlined_at == 0 && break
@@ -120,7 +120,7 @@ function default_expr_type_printer(io::IO, @nospecialize typ)
     nothing
 end
 
-function compute_loc_stack(code::IRCode, line::Int)
+function compute_loc_stack(code::IRCode, line::Int32)
     stack = []
     line === 0 && return stack
     inlined_at = code.linetable[line].inlined_at
