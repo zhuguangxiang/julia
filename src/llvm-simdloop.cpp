@@ -204,14 +204,14 @@ bool LowerSIMDLoop::runOnModule(Module &M)
         MDNode *m = MDNode::get(Lh->getContext(), ArrayRef<Metadata *>(n));
 
         // Mark memory references so that Loop::isAnnotatedParallel will return true for this loop.
-        for (BasicBlock *BB : L->blocks()) {
-            for (Instruction &I : *BB) {
-                if (I.mayReadOrWriteMemory()) {
-                    I.setMetadata(LLVMContext::MD_mem_parallel_loop_access, m);
-                }
-            }
-        }
-        assert(L->isAnnotatedParallel());
+        // for (BasicBlock *BB : L->blocks()) {
+        //    for (Instruction &I : *BB) {
+        //        if (I.mayReadOrWriteMemory()) {
+        //            I.setMetadata(LLVMContext::MD_mem_parallel_loop_access, m);
+        //        }
+        //    }
+        // }
+        // assert(L->isAnnotatedParallel());
 
         // Mark floating-point reductions as okay to reassociate/commute.
         for (BasicBlock::iterator I = Lh->begin(), E = Lh->end(); I != E; ++I) {
