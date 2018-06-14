@@ -790,7 +790,7 @@ function with_dependencies_loadable_at_toplevel(f, mainctx::Context, pkg::Packag
         write_env(localctx, display_diff = false)
         will_resolve && build_versions(localctx, new)
         sep = Sys.iswindows() ? ';' : ':'
-        withenv(f, "JULIA_LOAD_PATH" => "@$sep$tmpdir$sep$(Types.stdlib_dir())")
+        withenv(f, "JULIA_LOAD_PATH" => "@$sep$tmpdir")
     end
 end
 
