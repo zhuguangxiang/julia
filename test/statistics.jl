@@ -115,8 +115,9 @@ end
 end
 
 # dimensional correctness
-isdefined(Main, :TestHelpers) || @eval Main include("TestHelpers.jl")
-using .Main.TestHelpers: Furlong
+isdefined(Main, :Furlongs) || @eval Main include("testhelpers/Furlongs.jl")
+using .Main.Furlongs
+
 @testset "Unitful elements" begin
     r = Furlong(1):Furlong(1):Furlong(2)
     a = Vector(r)

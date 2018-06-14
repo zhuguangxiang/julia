@@ -1214,8 +1214,9 @@ Base.rem(x, y::NotReal) = rem(x, y.val)
 Base.isless(x, y::NotReal) = isless(x, y.val)
 @test (:)(1, NotReal(1), 5) isa StepRange{Int,NotReal}
 
-isdefined(Main, :TestHelpers) || @eval Main include("TestHelpers.jl")
-using .Main.TestHelpers: Furlong
+isdefined(Main, :Furlongs) || @eval Main include("testhelpers/Furlongs.jl")
+using .Main.Furlongs
+
 @testset "dimensional correctness" begin
     @test length(Vector(Furlong(2):Furlong(10))) == 9
     @test length(range(Furlong(2), length=9)) == 9
