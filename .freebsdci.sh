@@ -32,7 +32,8 @@ compile(){
     export USECCACHE=1
 
     gmake check-whitespace
-    gmake all -j $MAKE_JOBS_NUMBER
+    gmake release -j $MAKE_JOBS_NUMBER
+    gmake debug -j $MAKE_JOBS_NUMBER
 }
 
 runtests(){
